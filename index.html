@@ -86,11 +86,20 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const fmt = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().slice(0, 10);
+const nowTime = () => { const d=new Date(); return d.toTimeString().slice(0,5); };
 const fmtDate = d => {
   if (!d) return "";
   const dt = new Date(d + "T00:00:00");
   return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 };
+const fmtTime = t => {
+  if (!t) return "";
+  const dt = new Date("2000-01-01T" + t);
+  return isNaN(dt) ? t : dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+};
+const fmtDateTime = (d, t) => t ? `${fmtDate(d)} · ${fmtTime(t)}` : fmtDate(d);
+// sort key: date + time (time defaults late-blank so dated-only items sort by date alone)
+const dtKey = e => (e.date || "") + "T" + (e.time || "00:00");
 const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 const CURRENCIES = {
@@ -354,7 +363,7 @@ function computeAll(){
      byCurrency:byCur,usedCurrencies:Object.keys(byCur).sort()};
   return C;
 }
-const sortedExpenses=()=>[...S.trip.expenses].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+const sortedExpenses=()=>[...S.trip.expenses].sort((a,b)=>dtKey(b).localeCompare(dtKey(a)));
 
 // ================= render =================
 function render(){
@@ -488,7 +497,7 @@ function renderExpenses(){
           <div style="flex:1;cursor:pointer" onclick="openExpenseUI('${e.id}')">
             <div style="font-weight:600;font-size:15px">${esc(e.desc)} ${e.hasPhoto?"📷":""}</div>
             <div style="font-size:13px;color:var(--muted);margin-top:2px">
-              ${e.date?`<span class="ts-mono" style="margin-right:6px">${fmtDate(e.date)}</span>`:""}
+              ${e.date?`<span class="ts-mono" style="margin-right:6px">${fmtDateTime(e.date,e.time)}</span>`:""}
               ${esc(personName(e.payer))} paid · split ${SPLIT_LABEL[e.splitMethod]} · ${e.participants.length} people
             </div>
             ${warn?`<div style="font-size:12px;color:var(--amber);margin-top:2px">⚠ ${esc(warn)}</div>`:""}
@@ -506,9 +515,37 @@ function renderExpenses(){
     </div>`;
 }
 
+function splitTallyHTML(){
+  const m=ED.splitMethod;
+  if(m==="even")return "";
+  const assigned=ED.participants.reduce((s,p)=>s+(parseFloat(ED.splitValues?.[p])||0),0);
+  if(m==="percent"){
+    const rem=r2(100-assigned);
+    const col=Math.abs(rem)<0.005?"var(--jade)":rem<0?"var(--red)":"var(--amber)";
+    const txt=Math.abs(rem)<0.005?"100% assigned ✓":rem<0?`Over by ${fmt(-rem)}%`:`${fmt(rem)}% unassigned`;
+    return `<div class="row" style="justify-content:space-between;margin-top:2px;font-size:13px">
+      <span style="color:var(--muted)">Assigned ${fmt(assigned)}%</span>
+      <span class="ts-mono" style="font-weight:600;color:${col}">${txt}</span></div>`;
+  }
+  if(m==="exact"){
+    const total=parseFloat(ED.amount)||0;
+    const rem=r2(total-assigned);
+    const col=Math.abs(rem)<0.005?"var(--jade)":rem<0?"var(--red)":"var(--amber)";
+    const txt=total<=0?"Enter the amount above":Math.abs(rem)<0.005?"Fully assigned ✓":rem<0?`Over by ${ED.currency} ${fmt(-rem)}`:`${ED.currency} ${fmt(rem)} unassigned`;
+    return `<div class="row" style="justify-content:space-between;margin-top:2px;font-size:13px">
+      <span style="color:var(--muted)">Assigned ${ED.currency} ${fmt(assigned)}</span>
+      <span class="ts-mono" style="font-weight:600;color:${col}">${txt}</span></div>`;
+  }
+  if(m==="shares"){
+    return `<div class="row" style="justify-content:flex-end;margin-top:2px;font-size:13px">
+      <span class="ts-mono" style="color:var(--muted)">Total portions: ${fmt(assigned)}</span></div>`;
+  }
+  return "";
+}
+
 function editorPreviewHTML(){
-  const warn=splitWarning(ED);
   let html="";
+  const warn=splitWarning(ED);
   if(warn)html+=`<div class="warn">⚠ ${esc(warn)}</div>`;
   if((parseFloat(ED.amount)||0)>0&&ED.participants.length>0){
     const shares=computeShares(ED);
@@ -529,8 +566,12 @@ function renderEditor(){
       <div class="row" style="margin-top:10px">
         <input class="input ts-mono" type="number" inputmode="decimal" step="any" placeholder="0.00"
           value="${esc(ED.amount)}" oninput="ED.amount=this.value;updatePreview()">
-        <input class="input ts-mono" type="date" style="width:160px"
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input class="input ts-mono" type="date" style="flex:1"
           value="${ED.date||today()}" onchange="ED.date=this.value">
+        <input class="input ts-mono" type="time" style="flex:1"
+          value="${ED.time||nowTime()}" onchange="ED.time=this.value">
       </div>
       <div style="margin-top:10px">
         <span class="label">Currency paid in</span>
@@ -577,6 +618,9 @@ function renderEditor(){
                 value="${esc(ED.splitValues?.[pid]??"")}"
                 oninput="ED.splitValues['${pid}']=this.value;updatePreview()">
             </div>`).join("")}
+          <div id="edTally">${splitTallyHTML()}</div>
+          ${(ED.splitMethod==="percent"||ED.splitMethod==="exact")?`
+            <button class="btn btn-ghost" style="margin-top:8px;font-size:13px;padding:7px 12px" onclick="distributeRemaining()">Split remainder evenly</button>`:""}
         </div>`:""}
       <div id="edPreview">${editorPreviewHTML()}</div>
       <div class="row" style="margin-top:16px">
@@ -764,13 +808,13 @@ window.newExpenseUI=()=>{
   if(S.trip.people.length<2){toast("Add at least two people first (People tab)");return;}
   ED={id:uid(),desc:"",amount:"",currency:S.trip.destCurrency||S.trip.baseCurrency,
     payer:S.trip.people[0]?.id||"",participants:S.trip.people.map(p=>p.id),
-    splitMethod:"even",splitValues:{},hasPhoto:false,date:today(),
+    splitMethod:"even",splitValues:{},hasPhoto:false,date:today(),time:nowTime(),
     _photo:null,_photoRemoved:false,_isNew:true};
   render();
 };
 window.openExpenseUI=async id=>{
   const e=S.trip.expenses.find(x=>x.id===id);if(!e)return;
-  ED={...e,splitValues:{...e.splitValues},date:e.date||today(),_photo:null,_photoRemoved:false};
+  ED={...e,splitValues:{...e.splitValues},date:e.date||today(),time:e.time||"",_photo:null,_photoRemoved:false};
   if(e.hasPhoto){try{ED._photo=await photoGet(e.id);}catch{}}
   render();
 };
@@ -786,6 +830,35 @@ window.setEDSplit=m=>{ED.splitMethod=m;render();};
 window.updatePreview=()=>{
   const el=document.getElementById("edPreview");
   if(el)el.innerHTML=editorPreviewHTML();
+  const tl=document.getElementById("edTally");
+  if(tl)tl.innerHTML=splitTallyHTML();
+};
+window.distributeRemaining=()=>{
+  const parts=ED.participants;
+  if(parts.length===0)return;
+  if(ED.splitMethod==="percent"){
+    const blanks=parts.filter(p=>!(ED.splitValues?.[p]>0)&&(ED.splitValues?.[p]!==0));
+    const assigned=parts.reduce((s,p)=>s+(parseFloat(ED.splitValues?.[p])||0),0);
+    const targets=blanks.length>0?blanks:parts;
+    const rem=blanks.length>0?100-assigned:100;
+    if(blanks.length===0)parts.forEach(p=>ED.splitValues[p]="");
+    const each=Math.floor((rem/targets.length)*100)/100;
+    let leftover=r2(rem-each*targets.length);
+    targets.forEach(p=>{let v=each;if(leftover>=0.005){v=r2(v+0.01);leftover=r2(leftover-0.01);}ED.splitValues[p]=v>0?String(v):"0";});
+  }else if(ED.splitMethod==="exact"){
+    const total=parseFloat(ED.amount)||0;
+    if(total<=0){toast("Enter the total amount first");return;}
+    const blanks=parts.filter(p=>!(ED.splitValues?.[p]>0)&&(ED.splitValues?.[p]!==0));
+    const assigned=parts.reduce((s,p)=>s+(parseFloat(ED.splitValues?.[p])||0),0);
+    const targets=blanks.length>0?blanks:parts;
+    const rem=blanks.length>0?r2(total-assigned):total;
+    if(rem<0){toast("Already over the total");return;}
+    if(blanks.length===0)parts.forEach(p=>ED.splitValues[p]="");
+    const each=Math.floor((rem/targets.length)*100)/100;
+    let leftover=r2(rem-each*targets.length);
+    targets.forEach(p=>{let v=each;if(leftover>=0.005){v=r2(v+0.01);leftover=r2(leftover-0.01);}ED.splitValues[p]=String(v);});
+  }
+  render();
 };
 window.pickPhoto=()=>document.getElementById("photoInput").click();
 document.getElementById("photoInput").addEventListener("change",async ev=>{
@@ -868,7 +941,8 @@ function buildSummary(){
   if(t.destination)out+=`Destination: ${t.destination}\n`;
   out+=`\n— Expenses —\n`;
   sortedExpenses().forEach(e=>{
-    out+=`• ${e.date?e.date+" ":""}${e.desc}: ${e.currency} ${fmt(parseFloat(e.amount)||0)} (paid by ${personName(e.payer)})\n`;
+    const dt=e.date?(e.date+(e.time?" "+e.time:"")+" "):"";
+    out+=`• ${dt}${e.desc}: ${e.currency} ${fmt(parseFloat(e.amount)||0)} (paid by ${personName(e.payer)})\n`;
   });
   if((t.settlements||[]).length>0){
     out+=`\n— Settlements made —\n`;
@@ -909,7 +983,7 @@ window.exportExcelUI=()=>{
     const wb=XLSX.utils.book_new();
     const exps=sortedExpenses();
     const expRows=exps.map(e=>({
-      Date:e.date||"",Description:e.desc,Currency:e.currency,
+      Date:e.date||"",Time:e.time||"",Description:e.desc,Currency:e.currency,
       Amount:r2(parseFloat(e.amount)||0),
       ["Amount ("+B+")"]:r2((parseFloat(e.amount)||0)*rateOf(e.currency)),
       "Paid by":personName(e.payer),
@@ -920,7 +994,7 @@ window.exportExcelUI=()=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(expRows.length?expRows:[{Description:"No expenses"}]),"Expenses");
     const shareRows=exps.map(e=>{
       const sh=computeShares(e);
-      const row={Date:e.date||"",Description:e.desc,Currency:e.currency};
+      const row={Date:e.date||"",Time:e.time||"",Description:e.desc,Currency:e.currency};
       t.people.forEach(p=>{row[p.name]=r2(sh[p.id]||0);});
       return row;
     });
