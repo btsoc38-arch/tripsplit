@@ -341,8 +341,17 @@ function computeAll(){
   });
   Object.values(byCur).forEach(m=>{m.transfers=simplifyDebts(m.balances);});
 
-  C={balances:bal,perPersonPaid:paid,totalSpent:total,transfers,byCurrency:byCur,
-     usedCurrencies:Object.keys(byCur).sort()};
+  // Settle-in-one-currency view: convert main-currency balances into the chosen settle currency
+  const settleCur=(S.settleCurrency&&t.currencies.some(c=>c.code===S.settleCurrency))?S.settleCurrency:t.baseCurrency;
+  const f=1/(rateOf(settleCur)||1);
+  const balS={},paidS={};
+  Object.entries(bal).forEach(([k,v])=>balS[k]=v*f);
+  Object.entries(paid).forEach(([k,v])=>paidS[k]=v*f);
+  const transfersS=simplifyDebts(balS);
+
+  C={balances:balS,perPersonPaid:paidS,totalSpent:total*f,transfers:transfersS,settleCur,
+     balMain:bal,paidMain:paid,totalMain:total,transfersMain:transfers,
+     byCurrency:byCur,usedCurrencies:Object.keys(byCur).sort()};
   return C;
 }
 const sortedExpenses=()=>[...S.trip.expenses].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -580,21 +589,29 @@ function renderEditor(){
 function renderSettle(){
   const t=S.trip,B=t.baseCurrency;
   const main=S.settleMode==="main";
+  const SC=C.settleCur;
   let html=`
     <div class="card">
       <span class="label">Settle in</span>
       <div class="seg">
-        <button class="${main?"on":""}" onclick="setSettleMode('main')">Main currency (${B})</button>
+        <button class="${main?"on":""}" onclick="setSettleMode('main')">One currency</button>
         <button class="${!main?"on":""}" onclick="setSettleMode('byCurrency')">By currency</button>
       </div>
+      ${main?`
+      <div class="row" style="margin-top:10px">
+        <span style="font-size:13px;color:var(--muted);white-space:nowrap">Convert everything to</span>
+        <select class="select" style="flex:1" onchange="setSettleCur(this.value)">
+          ${t.currencies.map(c=>`<option value="${c.code}"${c.code===SC?" selected":""}>${curLabel(c.code)}${c.code===B?" (main)":c.code===t.destCurrency?" (destination)":""}</option>`).join("")}
+        </select>
+      </div>`:""}
       <div style="font-size:12px;color:var(--muted);margin-top:8px">
-        ${main?`Everything converted to ${B} using your exchange rates (People tab)`
+        ${main?`Everything converted to ${SC} using your exchange rates (People tab)`
              :"Each currency settled separately — no conversion, no rates needed"}
       </div>
     </div>`;
   if(main){
     html+=`<div class="card">
-      <span class="label">Balances (${B})</span>
+      <span class="label">Balances (${SC})</span>
       ${t.people.length===0?`<div class="empty">Add people and expenses first</div>`:""}
       ${t.people.map(p=>{
         const b=r2(C.balances[p.id]||0);
@@ -602,25 +619,25 @@ function renderSettle(){
         const lbl=b>0.005?"gets back ":b<-0.005?"owes ":"";
         return `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">
           <div><div style="font-weight:600">${esc(p.name)}</div>
-          <div style="font-size:12px;color:var(--muted)">paid ${B} ${fmt(C.perPersonPaid[p.id]||0)}</div></div>
+          <div style="font-size:12px;color:var(--muted)">paid ${SC} ${fmt(C.perPersonPaid[p.id]||0)}</div></div>
           <div class="ts-mono" style="font-weight:600;color:${col}">${lbl}${fmt(Math.abs(b))}</div>
         </div>`;
       }).join("")}
     </div>
     <div class="receipt">
-      <div class="ts-display" style="font-weight:700;font-size:16px;text-align:center;letter-spacing:.06em;text-transform:uppercase">Settle up · ${B}</div>
+      <div class="ts-display" style="font-weight:700;font-size:16px;text-align:center;letter-spacing:.06em;text-transform:uppercase">Settle up · ${SC}</div>
       <div style="text-align:center;margin-top:4px;margin-bottom:10px"><span class="pill">${C.transfers.length} payment${C.transfers.length===1?"":"s"} outstanding</span></div>
       ${C.transfers.length===0?`<div class="empty" style="padding:14px">All settled — nobody owes anything 🎉</div>`:""}
       ${C.transfers.map((tr,i)=>`
         <div class="rline">
           <span><b>${esc(personName(tr.from))}</b> pays <b>${esc(personName(tr.to))}</b></span>
           <span class="row" style="gap:8px">
-            <span class="ts-mono" style="font-weight:600">${B} ${fmt(tr.amount)}</span>
+            <span class="ts-mono" style="font-weight:600">${SC} ${fmt(tr.amount)}</span>
             <button class="btn btn-settle" onclick="markSettledUI('main','',${i})">Settle ✓</button>
           </span>
         </div>`).join("")}
       <div class="rline" style="margin-top:6px;color:var(--muted);font-size:12px">
-        <span>Total trip spend</span><span class="ts-mono">${B} ${fmt(C.totalSpent)}</span>
+        <span>Total trip spend</span><span class="ts-mono">${SC} ${fmt(C.totalSpent)}</span>
       </div>
     </div>`;
   }else{
@@ -672,10 +689,11 @@ window.goHome=()=>{S.index.activeId=null;S.trip=null;ED=null;LS.saveIndex(S.inde
 window.goTrip=id=>{
   S.index.activeId=id;LS.saveIndex(S.index);
   S.trip=upgradeTrip(LS.getTrip(id)||{baseCurrency:"SGD",destination:"",destCurrency:"",currencies:[{code:"SGD",rate:1}],people:[],expenses:[],settlements:[]});
-  S.tab="expenses";S.settleMode="main";ED=null;render();
+  S.tab="expenses";S.settleMode="main";S.settleCurrency=S.trip.baseCurrency;ED=null;render();
 };
 window.setTab=t=>{S.tab=t;ED=null;render();};
 window.setSettleMode=m=>{S.settleMode=m;render();};
+window.setSettleCur=code=>{S.settleCurrency=code;render();};
 
 window.createTripUI=()=>{
   const name=document.getElementById("ntName").value.trim();
@@ -834,7 +852,7 @@ function confirmDialog(msg){
 window.markSettledUI=async(mode,code,i)=>{
   const tr=mode==="main"?C.transfers[i]:C.byCurrency[code]?.transfers[i];
   if(!tr)return;
-  const cur=mode==="main"?S.trip.baseCurrency:code;
+  const cur=mode==="main"?C.settleCur:code;
   if(!await confirmDialog(`${personName(tr.from)} has paid ${personName(tr.to)} ${cur} ${fmt(tr.amount)}?`))return;
   S.trip.settlements.push({id:uid(),from:tr.from,to:tr.to,amount:tr.amount,currency:cur,date:today()});
   saveTrip();toast("Settlement recorded ✓");render();
@@ -857,9 +875,10 @@ function buildSummary(){
     t.settlements.forEach(st=>{out+=`✓ ${st.date}: ${personName(st.from)} paid ${personName(st.to)} ${st.currency} ${fmt(st.amount)}\n`;});
   }
   if(S.settleMode==="main"){
-    out+=`\nTotal spent: ${B} ${fmt(C.totalSpent)}\n\n— Outstanding (${B}) —\n`;
+    const SC=C.settleCur;
+    out+=`\nTotal spent: ${SC} ${fmt(C.totalSpent)}\n\n— Outstanding (${SC}) —\n`;
     if(C.transfers.length===0)out+="All settled!\n";
-    C.transfers.forEach(tr=>{out+=`${personName(tr.from)} pays ${personName(tr.to)} ${B} ${fmt(tr.amount)}\n`;});
+    C.transfers.forEach(tr=>{out+=`${personName(tr.from)} pays ${personName(tr.to)} ${SC} ${fmt(tr.amount)}\n`;});
   }else{
     out+=`\n— Outstanding by currency —\n`;
     let any=false;
@@ -908,13 +927,13 @@ window.exportExcelUI=()=>{
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(shareRows.length?shareRows:[{Description:"No expenses"}]),"Shares per person");
     const balRows=t.people.map(p=>({
       Person:p.name,
-      ["Paid ("+B+")"]:r2(C.perPersonPaid[p.id]||0),
-      ["Net balance ("+B+")"]:r2(C.balances[p.id]||0),
-      Status:r2(C.balances[p.id]||0)>0.005?"Gets back":r2(C.balances[p.id]||0)<-0.005?"Owes":"Settled",
+      ["Paid ("+B+")"]:r2(C.paidMain[p.id]||0),
+      ["Net balance ("+B+")"]:r2(C.balMain[p.id]||0),
+      Status:r2(C.balMain[p.id]||0)>0.005?"Gets back":r2(C.balMain[p.id]||0)<-0.005?"Owes":"Settled",
     }));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(balRows.length?balRows:[{Person:"No people"}]),"Balances");
     const outRows=[];
-    C.transfers.forEach(tr=>outRows.push({Mode:"Main ("+B+")",From:personName(tr.from),To:personName(tr.to),Currency:B,Amount:tr.amount}));
+    C.transfersMain.forEach(tr=>outRows.push({Mode:"Main ("+B+")",From:personName(tr.from),To:personName(tr.to),Currency:B,Amount:tr.amount}));
     C.usedCurrencies.forEach(code=>{
       C.byCurrency[code].transfers.forEach(tr=>outRows.push({Mode:"By currency",From:personName(tr.from),To:personName(tr.to),Currency:code,Amount:tr.amount}));
     });
