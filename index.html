@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TripSplit</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TripSplit">
+<meta name="theme-color" content="#0E7A5F">
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="%230E7A5F"/><text x="50" y="68" font-size="52" text-anchor="middle" fill="white" font-family="sans-serif">✈</text></svg>'>
+<link rel="manifest" href='data:application/manifest+json,{"name":"TripSplit","short_name":"TripSplit","display":"standalone","background_color":"%23F1F4F2","theme_color":"%230E7A5F","start_url":".","icons":[{"src":"data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><rect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%230E7A5F%27/></svg>","sizes":"any","type":"image/svg+xml"}]}'>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+:root{
+  --paper:#F1F4F2; --card:#FFFFFF; --ink:#16211E; --muted:#5C6B66;
+  --jade:#0E7A5F; --jade-soft:#E2F0EB; --amber:#B97A0F; --amber-soft:#FBF1DC;
+  --line:#DCE4E0; --red:#B3403A;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  -webkit-tap-highlight-color:transparent}
+#app{min-height:100vh;max-width:560px;margin:0 auto;
+  padding:calc(16px + env(safe-area-inset-top)) 14px calc(90px + env(safe-area-inset-bottom))}
+.ts-display{font-family:'Space Grotesk',sans-serif}
+.ts-mono{font-family:'IBM Plex Mono',monospace}
+.ts-h1{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;margin:0}
+.ts-sub{color:var(--muted);font-size:13px;margin-top:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;margin-bottom:6px;display:block}
+.input,.select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#fff;color:var(--ink);outline:none;font-family:inherit;-webkit-appearance:none}
+.input:focus,.select:focus{border-color:var(--jade);box-shadow:0 0 0 3px var(--jade-soft)}
+.btn{border:none;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--jade);color:#fff}
+.btn-ghost{background:transparent;color:var(--jade);border:1px solid var(--jade)}
+.btn-danger{background:transparent;color:var(--red);border:none;font-size:13px;padding:6px}
+.btn-settle{background:var(--jade-soft);color:var(--jade);border:none;font-size:12px;padding:6px 12px;border-radius:999px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14px;cursor:pointer;user-select:none}
+.chip.on{background:var(--jade);border-color:var(--jade);color:#fff}
+.row{display:flex;gap:8px;align-items:center}
+.tabbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;max-width:560px;margin:0 auto;z-index:10;padding-bottom:env(safe-area-inset-bottom)}
+.tab{flex:1;padding:12px 4px 14px;text-align:center;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;background:none;border:none;font-family:inherit}
+.tab.on{color:var(--jade)}
+.tab .ico{font-size:18px;display:block;margin-bottom:2px}
+.seg{display:flex;background:var(--paper);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{flex:1;min-width:70px;border:none;background:transparent;padding:8px 6px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.warn{background:var(--amber-soft);color:var(--amber);border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px}
+.receipt{background:#fff;border:1px solid var(--line);border-radius:4px;padding:18px 16px;margin-top:12px;
+  box-shadow:0 2px 8px rgba(22,33,30,.06);position:relative}
+.receipt:after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:8px;
+  background:linear-gradient(-45deg,transparent 66.66%,#fff 66.66%) 0 0/12px 8px,
+  linear-gradient(45deg,transparent 66.66%,#fff 66.66%) 6px 0/12px 8px;}
+.rline{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.rline:last-child{border-bottom:none}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--jade-soft);color:var(--jade);font-weight:600}
+.empty{text-align:center;color:var(--muted);padding:28px 10px;font-size:14px}
+.exp-item{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.exp-item:last-child{border-bottom:none}
+.trip-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px;
+  background:#fff;border:1px solid var(--line);border-radius:14px;margin-top:10px;cursor:pointer}
+.toast{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;z-index:30;white-space:nowrap}
+.photo-thumb{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.photo-modal{position:fixed;inset:0;background:rgba(22,33,30,.85);z-index:40;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.photo-modal img{max-width:100%;max-height:80vh;border-radius:10px}
+.back{background:none;border:none;font-size:15px;font-weight:600;color:var(--jade);cursor:pointer;padding:0;font-family:inherit;margin-bottom:8px}
+.cur-section{margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)}
+.hist-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.hist-item:last-child{border-bottom:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" class="hidden">
+<script>
+"use strict";
+// ================= helpers =================
+const uid = () => Math.random().toString(36).slice(2, 10);
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+const fmt = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const today = () => new Date().toISOString().slice(0, 10);
+const fmtDate = d => {
+  if (!d) return "";
+  const dt = new Date(d + "T00:00:00");
+  return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+};
+const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+const CURRENCIES = {
+  AED:"UAE Dirham",AUD:"Australian Dollar",BDT:"Bangladeshi Taka",BHD:"Bahraini Dinar",
+  BND:"Brunei Dollar",BRL:"Brazilian Real",CAD:"Canadian Dollar",CHF:"Swiss Franc",
+  CLP:"Chilean Peso",CNY:"Chinese Yuan",COP:"Colombian Peso",CZK:"Czech Koruna",
+  DKK:"Danish Krone",EGP:"Egyptian Pound",EUR:"Euro",FJD:"Fiji Dollar",
+  GBP:"British Pound",HKD:"Hong Kong Dollar",HUF:"Hungarian Forint",IDR:"Indonesian Rupiah",
+  ILS:"Israeli Shekel",INR:"Indian Rupee",ISK:"Icelandic Krona",JOD:"Jordanian Dinar",
+  JPY:"Japanese Yen",KES:"Kenyan Shilling",KHR:"Cambodian Riel",KRW:"South Korean Won",
+  KWD:"Kuwaiti Dinar",LAK:"Lao Kip",LKR:"Sri Lankan Rupee",MAD:"Moroccan Dirham",
+  MMK:"Myanmar Kyat",MNT:"Mongolian Tugrik",MOP:"Macanese Pataca",MUR:"Mauritian Rupee",
+  MVR:"Maldivian Rufiyaa",MXN:"Mexican Peso",MYR:"Malaysian Ringgit",NOK:"Norwegian Krone",
+  NPR:"Nepalese Rupee",NZD:"New Zealand Dollar",OMR:"Omani Rial",PEN:"Peruvian Sol",
+  PHP:"Philippine Peso",PKR:"Pakistani Rupee",PLN:"Polish Zloty",QAR:"Qatari Riyal",
+  RON:"Romanian Leu",RUB:"Russian Ruble",SAR:"Saudi Riyal",SEK:"Swedish Krona",
+  SGD:"Singapore Dollar",THB:"Thai Baht",TRY:"Turkish Lira",TWD:"New Taiwan Dollar",
+  TZS:"Tanzanian Shilling",USD:"US Dollar",VND:"Vietnamese Dong",ZAR:"South African Rand",
+};
+const COUNTRIES = [
+  ["Australia","AUD"],["Austria","EUR"],["Bahrain","BHD"],["Bangladesh","BDT"],
+  ["Belgium","EUR"],["Brazil","BRL"],["Brunei","BND"],["Cambodia","KHR"],
+  ["Canada","CAD"],["Chile","CLP"],["China","CNY"],["Colombia","COP"],
+  ["Czech Republic","CZK"],["Denmark","DKK"],["Egypt","EGP"],["Fiji","FJD"],
+  ["Finland","EUR"],["France","EUR"],["Germany","EUR"],["Greece","EUR"],
+  ["Hong Kong","HKD"],["Hungary","HUF"],["Iceland","ISK"],["India","INR"],
+  ["Indonesia","IDR"],["Ireland","EUR"],["Israel","ILS"],["Italy","EUR"],
+  ["Japan","JPY"],["Jordan","JOD"],["Kenya","KES"],["Kuwait","KWD"],
+  ["Laos","LAK"],["Macau","MOP"],["Malaysia","MYR"],["Maldives","MVR"],
+  ["Mauritius","MUR"],["Mexico","MXN"],["Mongolia","MNT"],["Morocco","MAD"],
+  ["Myanmar","MMK"],["Nepal","NPR"],["Netherlands","EUR"],["New Zealand","NZD"],
+  ["Norway","NOK"],["Oman","OMR"],["Pakistan","PKR"],["Peru","PEN"],
+  ["Philippines","PHP"],["Poland","PLN"],["Portugal","EUR"],["Qatar","QAR"],
+  ["Romania","RON"],["Russia","RUB"],["Saudi Arabia","SAR"],["Singapore","SGD"],
+  ["South Africa","ZAR"],["South Korea","KRW"],["Spain","EUR"],["Sri Lanka","LKR"],
+  ["Sweden","SEK"],["Switzerland","CHF"],["Taiwan","TWD"],["Tanzania","TZS"],
+  ["Thailand","THB"],["Turkey","TRY"],["United Arab Emirates","AED"],
+  ["United Kingdom","GBP"],["United States","USD"],["Vietnam","VND"],
+];
+const DEFAULT_QUICK = ["SGD","MYR"];
+const SPLIT_LABEL = { even:"evenly", percent:"by %", shares:"by portions", exact:"by exact amounts" };
+
+function simplifyDebts(balances){
+  const debtors=[],creditors=[];
+  Object.entries(balances).forEach(([id,bal])=>{
+    const b=r2(bal);
+    if(b<-0.005)debtors.push({id,amt:-b});
+    else if(b>0.005)creditors.push({id,amt:b});
+  });
+  debtors.sort((a,b)=>b.amt-a.amt);
+  creditors.sort((a,b)=>b.amt-a.amt);
+  const transfers=[]; let i=0,j=0;
+  while(i<debtors.length&&j<creditors.length){
+    const pay=Math.min(debtors[i].amt,creditors[j].amt);
+    if(pay>0.005)transfers.push({from:debtors[i].id,to:creditors[j].id,amount:r2(pay)});
+    debtors[i].amt=r2(debtors[i].amt-pay);
+    creditors[j].amt=r2(creditors[j].amt-pay);
+    if(debtors[i].amt<=0.005)i++;
+    if(creditors[j].amt<=0.005)j++;
+  }
+  return transfers;
+}
+
+function computeShares(exp){
+  const parts=exp.participants,n=parts.length;
+  const total=parseFloat(exp.amount)||0;
+  const shares={};
+  if(n===0||total<=0)return shares;
+  if(exp.splitMethod==="even"){
+    const base=Math.floor((total/n)*100)/100;
+    let rem=r2(total-base*n);
+    parts.forEach(pid=>{
+      let s=base;
+      if(rem>=0.005){s=r2(s+0.01);rem=r2(rem-0.01);}
+      shares[pid]=s;
+    });
+  }else if(exp.splitMethod==="percent"){
+    parts.forEach(pid=>{
+      const pct=parseFloat(exp.splitValues?.[pid])||0;
+      shares[pid]=r2((total*pct)/100);
+    });
+  }else if(exp.splitMethod==="shares"){
+    const ts=parts.reduce((s,pid)=>s+(parseFloat(exp.splitValues?.[pid])||0),0);
+    parts.forEach(pid=>{
+      const sh=parseFloat(exp.splitValues?.[pid])||0;
+      shares[pid]=ts>0?r2((total*sh)/ts):0;
+    });
+  }else if(exp.splitMethod==="exact"){
+    parts.forEach(pid=>{shares[pid]=r2(parseFloat(exp.splitValues?.[pid])||0);});
+  }
+  return shares;
+}
+
+function splitWarning(exp){
+  const total=parseFloat(exp.amount)||0;
+  if(total<=0||exp.participants.length===0)return null;
+  const sum=exp.participants.reduce((s,p)=>s+(parseFloat(exp.splitValues?.[p])||0),0);
+  if(exp.splitMethod==="percent"&&Math.abs(sum-100)>0.01)
+    return `Percentages add up to ${r2(sum)}%, not 100%`;
+  if(exp.splitMethod==="exact"&&Math.abs(sum-total)>0.01)
+    return `Amounts add up to ${fmt(sum)}, but the expense is ${fmt(total)}`;
+  if(exp.splitMethod==="shares"&&sum<=0)return "Enter at least one portion";
+  return null;
+}
+
+function compressImage(file,maxDim=1000,quality=0.6){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        let{width,height}=img;
+        const scale=Math.min(1,maxDim/Math.max(width,height));
+        width=Math.round(width*scale);height=Math.round(height*scale);
+        const canvas=document.createElement("canvas");
+        canvas.width=width;canvas.height=height;
+        canvas.getContext("2d").drawImage(img,0,0,width,height);
+        resolve(canvas.toDataURL("image/jpeg",quality));
+      };
+      img.onerror=()=>reject(new Error("bad image"));
+      img.src=reader.result;
+    };
+    reader.onerror=()=>reject(new Error("bad file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+// ================= storage: localStorage for data, IndexedDB for photos =================
+const LS = {
+  getIndex(){ try{const v=localStorage.getItem("ts-index");return v?JSON.parse(v):{trips:[],activeId:null};}catch{return{trips:[],activeId:null};} },
+  saveIndex(ix){ try{localStorage.setItem("ts-index",JSON.stringify(ix));}catch(e){toast("Storage full!");} },
+  getTrip(id){ try{const v=localStorage.getItem("ts-trip:"+id);return v?JSON.parse(v):null;}catch{return null;} },
+  saveTrip(id,d){ try{localStorage.setItem("ts-trip:"+id,JSON.stringify(d));}catch(e){toast("Storage full — couldn't save");} },
+  delTrip(id){ localStorage.removeItem("ts-trip:"+id); },
+};
+
+let _db=null;
+function openDB(){
+  if(_db)return _db;
+  _db=new Promise((res,rej)=>{
+    const r=indexedDB.open("tripsplit-photos",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("photos");
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error);
+  });
+  return _db;
+}
+async function photoSet(id,val){
+  const d=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=d.transaction("photos","readwrite");
+    tx.objectStore("photos").put(val,id);
+    tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);
+  });
+}
+async function photoGet(id){
+  const d=await openDB();
+  return new Promise((res,rej)=>{
+    const rq=d.transaction("photos").objectStore("photos").get(id);
+    rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error);
+  });
+}
+async function photoDel(id){
+  const d=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=d.transaction("photos","readwrite");
+    tx.objectStore("photos").delete(id);
+    tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);
+  });
+}
+
+// ================= state =================
+let S = {
+  index: LS.getIndex(),
+  trip: null,          // active trip data
+  tab: "expenses",
+  settleMode: "main",
+  renamingId: null,
+};
+let ED = null;         // expense draft being edited
+let C = null;          // last computed balances/transfers
+let toastTimer=null;
+
+function toast(msg){
+  document.querySelectorAll(".toast").forEach(t=>t.remove());
+  const el=document.createElement("div");
+  el.className="toast";el.textContent=msg;
+  document.body.appendChild(el);
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.remove(),2400);
+}
+
+const activeTrip=()=>S.index.trips.find(t=>t.id===S.index.activeId)||null;
+const personName=id=>S.trip?.people.find(p=>p.id===id)?.name||"?";
+const rateOf=code=>S.trip?.currencies.find(c=>c.code===code)?.rate??1;
+const curLabel=code=>CURRENCIES[code]?`${code} — ${CURRENCIES[code]}`:code;
+const saveTrip=()=>{ if(S.index.activeId&&S.trip)LS.saveTrip(S.index.activeId,S.trip); };
+
+function upgradeTrip(d){
+  if(!d.destination)d.destination="";
+  if(!d.destCurrency)d.destCurrency="";
+  if(!d.settlements)d.settlements=[];
+  return d;
+}
+
+// ================= computations =================
+function computeAll(){
+  const t=S.trip;
+  const bal={},paid={};let total=0;
+  t.people.forEach(p=>{bal[p.id]=0;paid[p.id]=0;});
+  t.expenses.forEach(exp=>{
+    const rate=rateOf(exp.currency);
+    const amtBase=(parseFloat(exp.amount)||0)*rate;
+    if(!(exp.payer in bal))return;
+    total+=amtBase;
+    bal[exp.payer]+=amtBase;
+    paid[exp.payer]+=amtBase;
+    const shares=computeShares(exp);
+    Object.entries(shares).forEach(([pid,s])=>{if(pid in bal)bal[pid]-=s*rate;});
+  });
+  (t.settlements||[]).forEach(st=>{
+    const rate=rateOf(st.currency);
+    const amt=(parseFloat(st.amount)||0)*rate;
+    if(st.from in bal)bal[st.from]+=amt;
+    if(st.to in bal)bal[st.to]-=amt;
+  });
+  const transfers=simplifyDebts(bal);
+
+  const byCur={};
+  const ensure=code=>{
+    if(!byCur[code]){byCur[code]={balances:{},total:0};t.people.forEach(p=>{byCur[code].balances[p.id]=0;});}
+  };
+  t.expenses.forEach(exp=>{
+    ensure(exp.currency);
+    const m=byCur[exp.currency];
+    const amt=parseFloat(exp.amount)||0;
+    if(!(exp.payer in m.balances))return;
+    m.total+=amt;m.balances[exp.payer]+=amt;
+    const shares=computeShares(exp);
+    Object.entries(shares).forEach(([pid,s])=>{if(pid in m.balances)m.balances[pid]-=s;});
+  });
+  (t.settlements||[]).forEach(st=>{
+    ensure(st.currency);
+    const m=byCur[st.currency];
+    const amt=parseFloat(st.amount)||0;
+    if(st.from in m.balances)m.balances[st.from]+=amt;
+    if(st.to in m.balances)m.balances[st.to]-=amt;
+  });
+  Object.values(byCur).forEach(m=>{m.transfers=simplifyDebts(m.balances);});
+
+  C={balances:bal,perPersonPaid:paid,totalSpent:total,transfers,byCurrency:byCur,
+     usedCurrencies:Object.keys(byCur).sort()};
+  return C;
+}
+const sortedExpenses=()=>[...S.trip.expenses].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+// ================= render =================
+function render(){
+  const app=document.getElementById("app");
+  if(!S.index.activeId||!S.trip){app.innerHTML=renderHome();return;}
+  computeAll();
+  const B=S.trip.baseCurrency;
+  let body="";
+  if(S.tab==="people")body=renderPeople();
+  else if(S.tab==="expenses")body=ED?renderEditor():renderExpenses();
+  else body=renderSettle();
+  app.innerHTML=`
+    <button class="back" onclick="goHome()">← All trips</button>
+    <h1 class="ts-h1 ts-display">${esc(activeTrip()?.name)}</h1>
+    <div class="ts-sub">${S.trip.destination?esc(S.trip.destination)+" · ":""}${S.trip.people.length} people · ${S.trip.expenses.length} expenses · main ${B}</div>
+    ${body}
+    <nav class="tabbar">
+      ${[["people","👥","People"],["expenses","🧾","Expenses"],["settle","🤝","Settle"]].map(([k,ico,lbl])=>
+        `<button class="tab${S.tab===k?" on":""}" onclick="setTab('${k}')"><span class="ico">${ico}</span>${lbl}</button>`).join("")}
+    </nav>`;
+}
+
+function renderHome(){
+  const trips=[...S.index.trips].sort((a,b)=>b.createdAt-a.createdAt);
+  return `
+    <h1 class="ts-h1 ts-display">Trips</h1>
+    <div class="ts-sub">Each trip keeps its own people, currencies and expenses</div>
+    <div class="card">
+      <span class="label">Start a new trip</span>
+      <input class="input" id="ntName" placeholder="Trip name (e.g. Taipei July 2026)">
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1">
+          <span class="label">Visiting</span>
+          <select class="select" id="ntDest">
+            <option value="">— Not travelling / local —</option>
+            ${COUNTRIES.map(([n,c])=>`<option value="${n}"${n==="Taiwan"?" selected":""}>${n} (${c})</option>`).join("")}
+          </select>
+        </div>
+        <div style="flex:1">
+          <span class="label">Main currency</span>
+          <select class="select" id="ntMain">
+            ${Object.keys(CURRENCIES).map(c=>`<option${c==="SGD"?" selected":""}>${c}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">
+        The destination's currency plus SGD and MYR are added automatically. You can add more later.
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="createTripUI()">Create trip</button>
+    </div>
+    ${trips.length===0?`<div class="empty">No trips yet. Create your first one above.</div>`:""}
+    ${trips.map(t=>S.renamingId===t.id?`
+      <div class="trip-item">
+        <div class="row" style="flex:1">
+          <input class="input" id="rn-${t.id}" value="${esc(t.name)}">
+          <button class="btn btn-primary" onclick="renameSave('${t.id}')">Save</button>
+        </div>
+      </div>`:`
+      <div class="trip-item" onclick="goTrip('${t.id}')">
+        <div>
+          <div class="ts-display" style="font-weight:700;font-size:17px">${esc(t.name)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Created ${new Date(t.createdAt).toLocaleDateString()}</div>
+        </div>
+        <div class="row" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost" style="padding:6px 10px;font-size:13px" onclick="renameStart('${t.id}')">Rename</button>
+          <button class="btn btn-danger" onclick="deleteTripUI('${t.id}')">Delete</button>
+        </div>
+      </div>`).join("")}`;
+}
+
+function renderPeople(){
+  const t=S.trip,B=t.baseCurrency;
+  return `
+    <div class="card">
+      <span class="label">Who's on this trip</span>
+      <div class="row">
+        <input class="input" id="pName" placeholder="Name (e.g. Alex)" onkeydown="if(event.key==='Enter')addPersonUI()">
+        <button class="btn btn-primary" onclick="addPersonUI()">Add</button>
+      </div>
+      <div class="chips" style="margin-top:10px">
+        ${t.people.map(p=>`<span class="chip">${esc(p.name)}<span style="color:var(--red);cursor:pointer;font-weight:700" onclick="removePersonUI('${p.id}')">×</span></span>`).join("")}
+        ${t.people.length===0?`<div class="empty" style="width:100%;padding:12px">Add at least two people to start splitting</div>`:""}
+      </div>
+    </div>
+    <div class="card">
+      <span class="label">Main currency (settlement)</span>
+      <select class="select" onchange="setMainCurUI(this.value)">
+        ${Object.keys(CURRENCIES).map(c=>`<option value="${c}"${c===B?" selected":""}>${curLabel(c)}</option>`).join("")}
+      </select>
+      <div class="cur-section">
+        <span class="label">Trip currencies &amp; exchange rates</span>
+        ${t.currencies.map(c=>c.code===B?`
+          <div class="row" style="margin-bottom:8px">
+            <span class="ts-mono" style="width:48px;font-weight:600">${c.code}</span>
+            <span style="font-size:13px;color:var(--muted);flex:1">main currency</span>
+          </div>`:`
+          <div class="row" style="margin-bottom:8px">
+            <span class="ts-mono" style="width:48px;font-weight:600">${c.code}</span>
+            <span style="font-size:13px;color:var(--muted)">1 ${c.code} =</span>
+            <input class="input ts-mono" type="number" inputmode="decimal" step="any" style="width:104px"
+              value="${c.rate}" onchange="setRateUI('${c.code}',this.value)">
+            <span style="font-size:13px;color:var(--muted)">${B}</span>
+            <span style="color:var(--red);cursor:pointer;font-weight:700;margin-left:auto" onclick="removeCurrencyUI('${c.code}')">×</span>
+          </div>`).join("")}
+        <div class="row" style="margin-top:8px">
+          <select class="select" id="curPick">
+            <option value="">Add a currency…</option>
+            ${Object.keys(CURRENCIES).filter(code=>!t.currencies.some(c=>c.code===code))
+              .map(code=>`<option value="${code}">${curLabel(code)}</option>`).join("")}
+          </select>
+          <button class="btn btn-ghost" onclick="addCurrencyUI()">Add</button>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">
+          Rates are only needed if you settle in the main currency. Settling "by currency" ignores them.
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderExpenses(){
+  const t=S.trip,B=t.baseCurrency;
+  return `
+    <div style="margin-top:12px">
+      <button class="btn btn-primary" style="width:100%;padding:13px" onclick="newExpenseUI()">+ Add expense</button>
+    </div>
+    <div class="card">
+      ${t.expenses.length===0?`<div class="empty">No expenses yet. Add your first one above.</div>`:""}
+      ${sortedExpenses().map(e=>{
+        const warn=splitWarning(e);
+        return `<div class="exp-item">
+          <div style="flex:1;cursor:pointer" onclick="openExpenseUI('${e.id}')">
+            <div style="font-weight:600;font-size:15px">${esc(e.desc)} ${e.hasPhoto?"📷":""}</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">
+              ${e.date?`<span class="ts-mono" style="margin-right:6px">${fmtDate(e.date)}</span>`:""}
+              ${esc(personName(e.payer))} paid · split ${SPLIT_LABEL[e.splitMethod]} · ${e.participants.length} people
+            </div>
+            ${warn?`<div style="font-size:12px;color:var(--amber);margin-top:2px">⚠ ${esc(warn)}</div>`:""}
+          </div>
+          <div style="text-align:right">
+            <div class="ts-mono" style="font-weight:600">${e.currency} ${fmt(parseFloat(e.amount)||0)}</div>
+            ${e.currency!==B?`<div class="ts-mono" style="font-size:12px;color:var(--muted)">≈ ${B} ${fmt((parseFloat(e.amount)||0)*rateOf(e.currency))}</div>`:""}
+            <div class="row" style="justify-content:flex-end;gap:0">
+              ${e.hasPhoto?`<button class="btn" style="background:none;color:var(--jade);font-size:13px;padding:6px" onclick="viewPhotoUI('${e.id}')">View photo</button>`:""}
+              <button class="btn btn-danger" onclick="delExpenseUI('${e.id}')">Delete</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+function editorPreviewHTML(){
+  const warn=splitWarning(ED);
+  let html="";
+  if(warn)html+=`<div class="warn">⚠ ${esc(warn)}</div>`;
+  if((parseFloat(ED.amount)||0)>0&&ED.participants.length>0){
+    const shares=computeShares(ED);
+    html+=`<div style="margin-top:10px;font-size:13px;color:var(--muted)">${
+      Object.entries(shares).map(([pid,s])=>`<span style="margin-right:12px">${esc(personName(pid))}: <span class="ts-mono">${fmt(s)}</span></span>`).join("")
+    }</div>`;
+  }
+  return html;
+}
+
+function renderEditor(){
+  const t=S.trip;
+  return `
+    <div class="card">
+      <span class="label">Expense</span>
+      <input class="input" placeholder="What was it? (e.g. Night market dinner)"
+        value="${esc(ED.desc)}" oninput="ED.desc=this.value">
+      <div class="row" style="margin-top:10px">
+        <input class="input ts-mono" type="number" inputmode="decimal" step="any" placeholder="0.00"
+          value="${esc(ED.amount)}" oninput="ED.amount=this.value;updatePreview()">
+        <input class="input ts-mono" type="date" style="width:160px"
+          value="${ED.date||today()}" onchange="ED.date=this.value">
+      </div>
+      <div style="margin-top:10px">
+        <span class="label">Currency paid in</span>
+        <div class="chips">
+          ${t.currencies.map(c=>`<span class="chip ts-mono${ED.currency===c.code?" on":""}" onclick="setEDCur('${c.code}')">${c.code}</span>`).join("")}
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <span class="label">Receipt photo</span>
+        ${ED._photo?`
+          <div class="row">
+            <img src="${ED._photo}" class="photo-thumb" onclick="showPhotoModal(ED._photo)">
+            <button class="btn btn-ghost" onclick="pickPhoto()">Replace</button>
+            <button class="btn btn-danger" onclick="removePhotoUI()">Remove</button>
+          </div>`:`
+          <button class="btn btn-ghost" onclick="pickPhoto()">📷 Add photo</button>`}
+      </div>
+      <div style="margin-top:14px">
+        <span class="label">Paid by</span>
+        <div class="chips">
+          ${t.people.map(p=>`<span class="chip${ED.payer===p.id?" on":""}" onclick="setEDPayer('${p.id}')">${esc(p.name)}</span>`).join("")}
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <span class="label">Split between</span>
+        <div class="chips">
+          ${t.people.map(p=>`<span class="chip${ED.participants.includes(p.id)?" on":""}" onclick="toggleEDPart('${p.id}')">${esc(p.name)}</span>`).join("")}
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <span class="label">How to split</span>
+        <div class="seg">
+          ${[["even","Evenly"],["percent","%"],["shares","Portions"],["exact","Amounts"]].map(([k,lbl])=>
+            `<button class="${ED.splitMethod===k?"on":""}" onclick="setEDSplit('${k}')">${lbl}</button>`).join("")}
+        </div>
+      </div>
+      ${ED.splitMethod!=="even"?`
+        <div style="margin-top:12px">
+          ${ED.participants.map(pid=>`
+            <div class="row" style="margin-bottom:8px">
+              <span style="width:90px;font-size:14px">${esc(personName(pid))}</span>
+              <input class="input ts-mono" type="number" inputmode="decimal" step="any"
+                placeholder="${ED.splitMethod==="percent"?"%":ED.splitMethod==="shares"?"portions":ED.currency}"
+                value="${esc(ED.splitValues?.[pid]??"")}"
+                oninput="ED.splitValues['${pid}']=this.value;updatePreview()">
+            </div>`).join("")}
+        </div>`:""}
+      <div id="edPreview">${editorPreviewHTML()}</div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn btn-primary" style="flex:1" onclick="saveExpenseUI()">Save expense</button>
+        <button class="btn btn-ghost" onclick="cancelExpenseUI()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function renderSettle(){
+  const t=S.trip,B=t.baseCurrency;
+  const main=S.settleMode==="main";
+  let html=`
+    <div class="card">
+      <span class="label">Settle in</span>
+      <div class="seg">
+        <button class="${main?"on":""}" onclick="setSettleMode('main')">Main currency (${B})</button>
+        <button class="${!main?"on":""}" onclick="setSettleMode('byCurrency')">By currency</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">
+        ${main?`Everything converted to ${B} using your exchange rates (People tab)`
+             :"Each currency settled separately — no conversion, no rates needed"}
+      </div>
+    </div>`;
+  if(main){
+    html+=`<div class="card">
+      <span class="label">Balances (${B})</span>
+      ${t.people.length===0?`<div class="empty">Add people and expenses first</div>`:""}
+      ${t.people.map(p=>{
+        const b=r2(C.balances[p.id]||0);
+        const col=b>0.005?"var(--jade)":b<-0.005?"var(--red)":"var(--muted)";
+        const lbl=b>0.005?"gets back ":b<-0.005?"owes ":"";
+        return `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">
+          <div><div style="font-weight:600">${esc(p.name)}</div>
+          <div style="font-size:12px;color:var(--muted)">paid ${B} ${fmt(C.perPersonPaid[p.id]||0)}</div></div>
+          <div class="ts-mono" style="font-weight:600;color:${col}">${lbl}${fmt(Math.abs(b))}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="receipt">
+      <div class="ts-display" style="font-weight:700;font-size:16px;text-align:center;letter-spacing:.06em;text-transform:uppercase">Settle up · ${B}</div>
+      <div style="text-align:center;margin-top:4px;margin-bottom:10px"><span class="pill">${C.transfers.length} payment${C.transfers.length===1?"":"s"} outstanding</span></div>
+      ${C.transfers.length===0?`<div class="empty" style="padding:14px">All settled — nobody owes anything 🎉</div>`:""}
+      ${C.transfers.map((tr,i)=>`
+        <div class="rline">
+          <span><b>${esc(personName(tr.from))}</b> pays <b>${esc(personName(tr.to))}</b></span>
+          <span class="row" style="gap:8px">
+            <span class="ts-mono" style="font-weight:600">${B} ${fmt(tr.amount)}</span>
+            <button class="btn btn-settle" onclick="markSettledUI('main','',${i})">Settle ✓</button>
+          </span>
+        </div>`).join("")}
+      <div class="rline" style="margin-top:6px;color:var(--muted);font-size:12px">
+        <span>Total trip spend</span><span class="ts-mono">${B} ${fmt(C.totalSpent)}</span>
+      </div>
+    </div>`;
+  }else{
+    if(C.usedCurrencies.length===0)html+=`<div class="card"><div class="empty">No expenses yet</div></div>`;
+    C.usedCurrencies.forEach(code=>{
+      const m=C.byCurrency[code];
+      if(m.total===0&&m.transfers.length===0)return;
+      html+=`<div class="receipt">
+        <div class="ts-display" style="font-weight:700;font-size:16px;text-align:center;letter-spacing:.06em;text-transform:uppercase">Settle up · ${code}</div>
+        <div style="text-align:center;margin-top:4px;margin-bottom:10px"><span class="pill">${m.transfers.length} payment${m.transfers.length===1?"":"s"} outstanding</span></div>
+        ${m.transfers.length===0?`<div class="empty" style="padding:14px">All settled in ${code}</div>`:""}
+        ${m.transfers.map((tr,i)=>`
+          <div class="rline">
+            <span><b>${esc(personName(tr.from))}</b> pays <b>${esc(personName(tr.to))}</b></span>
+            <span class="row" style="gap:8px">
+              <span class="ts-mono" style="font-weight:600">${code} ${fmt(tr.amount)}</span>
+              <button class="btn btn-settle" onclick="markSettledUI('byCurrency','${code}',${i})">Settle ✓</button>
+            </span>
+          </div>`).join("")}
+        <div class="rline" style="margin-top:6px;color:var(--muted);font-size:12px">
+          <span>Total spent in ${code}</span><span class="ts-mono">${fmt(m.total)}</span>
+        </div>
+      </div>`;
+    });
+  }
+  if((t.settlements||[]).length>0){
+    html+=`<div class="card">
+      <span class="label">Settlement history</span>
+      ${[...t.settlements].reverse().map(st=>`
+        <div class="hist-item">
+          <span><span class="ts-mono" style="color:var(--muted);margin-right:6px">${fmtDate(st.date)}</span>
+          <b>${esc(personName(st.from))}</b> paid <b>${esc(personName(st.to))}</b></span>
+          <span class="row" style="gap:6px">
+            <span class="ts-mono" style="font-weight:600">${st.currency} ${fmt(st.amount)}</span>
+            <button class="btn btn-danger" style="padding:4px" onclick="undoSettlementUI('${st.id}')">Undo</button>
+          </span>
+        </div>`).join("")}
+    </div>`;
+  }
+  html+=`<div class="row" style="margin-top:18px">
+    <button class="btn btn-primary" style="flex:1;padding:13px" onclick="copySummaryUI()">Copy summary</button>
+    <button class="btn btn-ghost" style="flex:1;padding:13px" onclick="exportExcelUI()">⬇ Export Excel</button>
+  </div>`;
+  return html;
+}
+
+// ================= actions =================
+window.goHome=()=>{S.index.activeId=null;S.trip=null;ED=null;LS.saveIndex(S.index);render();};
+window.goTrip=id=>{
+  S.index.activeId=id;LS.saveIndex(S.index);
+  S.trip=upgradeTrip(LS.getTrip(id)||{baseCurrency:"SGD",destination:"",destCurrency:"",currencies:[{code:"SGD",rate:1}],people:[],expenses:[],settlements:[]});
+  S.tab="expenses";S.settleMode="main";ED=null;render();
+};
+window.setTab=t=>{S.tab=t;ED=null;render();};
+window.setSettleMode=m=>{S.settleMode=m;render();};
+
+window.createTripUI=()=>{
+  const name=document.getElementById("ntName").value.trim();
+  if(!name){toast("Give the trip a name first");return;}
+  const dest=document.getElementById("ntDest").value;
+  const main=document.getElementById("ntMain").value;
+  const destCur=COUNTRIES.find(([c])=>c===dest)?.[1]||"";
+  const codes=[...new Set([main,...DEFAULT_QUICK,destCur].filter(Boolean))];
+  const id=uid();
+  const data={baseCurrency:main,destination:dest,destCurrency:destCur,
+    currencies:codes.map(code=>({code,rate:1})),people:[],expenses:[],settlements:[]};
+  LS.saveTrip(id,data);
+  S.index.trips.push({id,name,createdAt:Date.now()});
+  window.goTrip(id);
+};
+window.renameStart=id=>{S.renamingId=id;render();};
+window.renameSave=id=>{
+  const v=document.getElementById("rn-"+id).value.trim();
+  if(v){const t=S.index.trips.find(x=>x.id===id);if(t)t.name=v;LS.saveIndex(S.index);}
+  S.renamingId=null;render();
+};
+window.deleteTripUI=async id=>{
+  if(!await confirmDialog("Delete this trip and all its expenses? This can't be undone."))return;
+  const data=LS.getTrip(id);
+  if(data)for(const e of data.expenses||[])if(e.hasPhoto){try{await photoDel(e.id);}catch{}}
+  LS.delTrip(id);
+  S.index.trips=S.index.trips.filter(t=>t.id!==id);
+  if(S.index.activeId===id){S.index.activeId=null;S.trip=null;}
+  LS.saveIndex(S.index);toast("Trip deleted");render();
+};
+
+window.addPersonUI=()=>{
+  const el=document.getElementById("pName");
+  const n=el.value.trim();if(!n)return;
+  S.trip.people.push({id:uid(),name:n});saveTrip();render();
+};
+window.removePersonUI=id=>{
+  const used=S.trip.expenses.some(e=>e.payer===id||e.participants.includes(id))||
+    (S.trip.settlements||[]).some(st=>st.from===id||st.to===id);
+  if(used){toast("Remove their expenses/settlements first");return;}
+  S.trip.people=S.trip.people.filter(p=>p.id!==id);saveTrip();render();
+};
+
+window.setMainCurUI=code=>{
+  if(!S.trip.currencies.some(c=>c.code===code))S.trip.currencies.push({code,rate:1});
+  S.trip.currencies=S.trip.currencies.map(c=>c.code===code?{...c,rate:1}:c);
+  S.trip.baseCurrency=code;saveTrip();render();
+};
+window.setRateUI=(code,val)=>{
+  const c=S.trip.currencies.find(c=>c.code===code);
+  if(c)c.rate=parseFloat(val)||0;saveTrip();
+};
+window.addCurrencyUI=()=>{
+  const code=document.getElementById("curPick").value;
+  if(!code)return;
+  if(S.trip.currencies.some(c=>c.code===code)){toast("Already added");return;}
+  S.trip.currencies.push({code,rate:1});saveTrip();render();
+};
+window.removeCurrencyUI=code=>{
+  if(code===S.trip.baseCurrency){toast("Can't remove the main currency");return;}
+  if(S.trip.expenses.some(e=>e.currency===code)||(S.trip.settlements||[]).some(st=>st.currency===code)){
+    toast("Expenses or settlements use this currency");return;
+  }
+  S.trip.currencies=S.trip.currencies.filter(c=>c.code!==code);saveTrip();render();
+};
+
+window.newExpenseUI=()=>{
+  if(S.trip.people.length<2){toast("Add at least two people first (People tab)");return;}
+  ED={id:uid(),desc:"",amount:"",currency:S.trip.destCurrency||S.trip.baseCurrency,
+    payer:S.trip.people[0]?.id||"",participants:S.trip.people.map(p=>p.id),
+    splitMethod:"even",splitValues:{},hasPhoto:false,date:today(),
+    _photo:null,_photoRemoved:false,_isNew:true};
+  render();
+};
+window.openExpenseUI=async id=>{
+  const e=S.trip.expenses.find(x=>x.id===id);if(!e)return;
+  ED={...e,splitValues:{...e.splitValues},date:e.date||today(),_photo:null,_photoRemoved:false};
+  if(e.hasPhoto){try{ED._photo=await photoGet(e.id);}catch{}}
+  render();
+};
+window.cancelExpenseUI=()=>{ED=null;render();};
+window.setEDCur=code=>{ED.currency=code;render();};
+window.setEDPayer=id=>{ED.payer=id;render();};
+window.toggleEDPart=id=>{
+  ED.participants=ED.participants.includes(id)
+    ?ED.participants.filter(x=>x!==id):[...ED.participants,id];
+  render();
+};
+window.setEDSplit=m=>{ED.splitMethod=m;render();};
+window.updatePreview=()=>{
+  const el=document.getElementById("edPreview");
+  if(el)el.innerHTML=editorPreviewHTML();
+};
+window.pickPhoto=()=>document.getElementById("photoInput").click();
+document.getElementById("photoInput").addEventListener("change",async ev=>{
+  const file=ev.target.files?.[0];ev.target.value="";
+  if(!file||!ED)return;
+  try{
+    const dataUrl=await compressImage(file);
+    ED._photo=dataUrl;ED._photoRemoved=false;render();
+  }catch(e){toast("Couldn't read that image");}
+});
+window.removePhotoUI=()=>{ED._photo=null;ED._photoRemoved=true;render();};
+
+window.saveExpenseUI=async()=>{
+  if(!ED.desc.trim()||!(parseFloat(ED.amount)>0)||!ED.payer||ED.participants.length===0){
+    toast("Fill in description, amount, payer and participants");return;
+  }
+  let hasPhoto=ED.hasPhoto;
+  try{
+    if(ED._photo){await photoSet(ED.id,ED._photo);hasPhoto=true;}
+    else if(ED._photoRemoved&&ED.hasPhoto){try{await photoDel(ED.id);}catch{}hasPhoto=false;}
+  }catch(e){toast("Photo couldn't be saved, but the expense was");}
+  const clean={...ED,hasPhoto};
+  delete clean._photo;delete clean._photoRemoved;delete clean._isNew;
+  const i=S.trip.expenses.findIndex(x=>x.id===clean.id);
+  if(i>=0)S.trip.expenses[i]=clean;else S.trip.expenses.push(clean);
+  ED=null;saveTrip();render();
+};
+window.delExpenseUI=async id=>{
+  const e=S.trip.expenses.find(x=>x.id===id);
+  if(e?.hasPhoto){try{await photoDel(id);}catch{}}
+  S.trip.expenses=S.trip.expenses.filter(x=>x.id!==id);saveTrip();render();
+};
+window.viewPhotoUI=async id=>{
+  try{
+    const p=await photoGet(id);
+    if(p)showPhotoModal(p);else toast("Photo not found");
+  }catch{toast("Photo not found");}
+};
+window.showPhotoModal=src=>{
+  const m=document.createElement("div");
+  m.className="photo-modal";
+  m.innerHTML=`<img src="${src}"><button class="btn" style="margin-top:14px;background:#fff;color:var(--ink)">Close</button>`;
+  m.onclick=()=>m.remove();
+  document.body.appendChild(m);
+};
+
+// In-app confirmation dialog (browser confirm() is blocked in some sandboxed environments)
+function confirmDialog(msg){
+  return new Promise(res=>{
+    const m=document.createElement("div");
+    m.className="photo-modal";
+    m.innerHTML=`<div style="background:#fff;border-radius:14px;padding:20px;max-width:320px;width:100%;text-align:center">
+      <div style="font-size:15px;line-height:1.45;margin-bottom:16px;color:var(--ink)">${esc(msg)}</div>
+      <div class="row" style="justify-content:center">
+        <button class="btn btn-primary" data-cf="yes" style="flex:1">Confirm</button>
+        <button class="btn btn-ghost" data-cf="no" style="flex:1">Cancel</button>
+      </div></div>`;
+    m.querySelector('[data-cf="yes"]').onclick=ev=>{ev.stopPropagation();m.remove();res(true);};
+    m.querySelector('[data-cf="no"]').onclick=ev=>{ev.stopPropagation();m.remove();res(false);};
+    document.body.appendChild(m);
+  });
+}
+
+window.markSettledUI=async(mode,code,i)=>{
+  const tr=mode==="main"?C.transfers[i]:C.byCurrency[code]?.transfers[i];
+  if(!tr)return;
+  const cur=mode==="main"?S.trip.baseCurrency:code;
+  if(!await confirmDialog(`${personName(tr.from)} has paid ${personName(tr.to)} ${cur} ${fmt(tr.amount)}?`))return;
+  S.trip.settlements.push({id:uid(),from:tr.from,to:tr.to,amount:tr.amount,currency:cur,date:today()});
+  saveTrip();toast("Settlement recorded ✓");render();
+};
+window.undoSettlementUI=async id=>{
+  if(!await confirmDialog("Undo this settlement? The debt will reappear."))return;
+  S.trip.settlements=S.trip.settlements.filter(x=>x.id!==id);saveTrip();render();
+};
+
+function buildSummary(){
+  const t=S.trip,B=t.baseCurrency;
+  let out=`${activeTrip()?.name||"Trip"} — Expense Summary\n`;
+  if(t.destination)out+=`Destination: ${t.destination}\n`;
+  out+=`\n— Expenses —\n`;
+  sortedExpenses().forEach(e=>{
+    out+=`• ${e.date?e.date+" ":""}${e.desc}: ${e.currency} ${fmt(parseFloat(e.amount)||0)} (paid by ${personName(e.payer)})\n`;
+  });
+  if((t.settlements||[]).length>0){
+    out+=`\n— Settlements made —\n`;
+    t.settlements.forEach(st=>{out+=`✓ ${st.date}: ${personName(st.from)} paid ${personName(st.to)} ${st.currency} ${fmt(st.amount)}\n`;});
+  }
+  if(S.settleMode==="main"){
+    out+=`\nTotal spent: ${B} ${fmt(C.totalSpent)}\n\n— Outstanding (${B}) —\n`;
+    if(C.transfers.length===0)out+="All settled!\n";
+    C.transfers.forEach(tr=>{out+=`${personName(tr.from)} pays ${personName(tr.to)} ${B} ${fmt(tr.amount)}\n`;});
+  }else{
+    out+=`\n— Outstanding by currency —\n`;
+    let any=false;
+    C.usedCurrencies.forEach(code=>{
+      C.byCurrency[code].transfers.forEach(tr=>{
+        any=true;out+=`${personName(tr.from)} pays ${personName(tr.to)} ${code} ${fmt(tr.amount)}\n`;
+      });
+    });
+    if(!any)out+="All settled!\n";
+  }
+  return out;
+}
+window.copySummaryUI=async()=>{
+  const text=buildSummary();
+  try{await navigator.clipboard.writeText(text);toast("Summary copied — paste it anywhere");}
+  catch{
+    const ta=document.createElement("textarea");
+    ta.value=text;document.body.appendChild(ta);
+    ta.select();document.execCommand("copy");ta.remove();
+    toast("Summary copied — paste it anywhere");
+  }
+};
+
+window.exportExcelUI=()=>{
+  if(typeof XLSX==="undefined"){toast("Excel library not loaded — check your connection");return;}
+  try{
+    const t=S.trip,B=t.baseCurrency;
+    const wb=XLSX.utils.book_new();
+    const exps=sortedExpenses();
+    const expRows=exps.map(e=>({
+      Date:e.date||"",Description:e.desc,Currency:e.currency,
+      Amount:r2(parseFloat(e.amount)||0),
+      ["Amount ("+B+")"]:r2((parseFloat(e.amount)||0)*rateOf(e.currency)),
+      "Paid by":personName(e.payer),
+      "Split method":SPLIT_LABEL[e.splitMethod]||e.splitMethod,
+      Participants:e.participants.map(personName).join(", "),
+      "Has receipt photo":e.hasPhoto?"Yes":"No",
+    }));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(expRows.length?expRows:[{Description:"No expenses"}]),"Expenses");
+    const shareRows=exps.map(e=>{
+      const sh=computeShares(e);
+      const row={Date:e.date||"",Description:e.desc,Currency:e.currency};
+      t.people.forEach(p=>{row[p.name]=r2(sh[p.id]||0);});
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(shareRows.length?shareRows:[{Description:"No expenses"}]),"Shares per person");
+    const balRows=t.people.map(p=>({
+      Person:p.name,
+      ["Paid ("+B+")"]:r2(C.perPersonPaid[p.id]||0),
+      ["Net balance ("+B+")"]:r2(C.balances[p.id]||0),
+      Status:r2(C.balances[p.id]||0)>0.005?"Gets back":r2(C.balances[p.id]||0)<-0.005?"Owes":"Settled",
+    }));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(balRows.length?balRows:[{Person:"No people"}]),"Balances");
+    const outRows=[];
+    C.transfers.forEach(tr=>outRows.push({Mode:"Main ("+B+")",From:personName(tr.from),To:personName(tr.to),Currency:B,Amount:tr.amount}));
+    C.usedCurrencies.forEach(code=>{
+      C.byCurrency[code].transfers.forEach(tr=>outRows.push({Mode:"By currency",From:personName(tr.from),To:personName(tr.to),Currency:code,Amount:tr.amount}));
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(outRows.length?outRows:[{Mode:"All settled"}]),"Outstanding");
+    const histRows=(t.settlements||[]).map(st=>({Date:st.date,From:personName(st.from),To:personName(st.to),Currency:st.currency,Amount:st.amount}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(histRows.length?histRows:[{From:"No settlements yet"}]),"Settlement history");
+    const rateRows=t.currencies.map(c=>({Currency:c.code,Name:CURRENCIES[c.code]||"",["Rate (1 unit in "+B+")"]:c.code===B?1:c.rate}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rateRows),"Exchange rates");
+    const safeName=(activeTrip()?.name||"trip").replace(/[\\/:*?"<>|]/g,"-");
+    XLSX.writeFile(wb,safeName+" - expenses.xlsx");
+    toast("Excel file downloaded");
+  }catch(e){console.error(e);toast("Export failed — try again");}
+};
+
+// ================= boot =================
+if(S.index.activeId){
+  const d=LS.getTrip(S.index.activeId);
+  if(d)S.trip=upgradeTrip(d);else S.index.activeId=null;
+}
+render();
+</script>
+</body>
+</html>
